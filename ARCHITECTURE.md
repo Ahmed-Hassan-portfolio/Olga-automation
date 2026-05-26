@@ -31,3 +31,24 @@
 - **MCP via stdio plus a CLI mirror**: stdio transport is convenient for Claude integration but deadlocks on large keyword trees streamed from `list_keywords` on big models. The CLI gives sub-agents a fresh-subprocess JSON interface that bypasses the stdio pipe entirely.
 - **Synthetic output generators in conftest**: lets the test suite run hermetically — no OLGA install, no proprietary `.opi` or `.tpl` data needed to verify the parsers against the exact byte format the solver emits.
 - **Outputs colocated with the `.opi`**: matches how OLGA itself writes by default, eliminates `-outDir` plumbing, and avoids a class of "files written somewhere else" footguns.
+
+## Orchestration layer
+
+The four library modules + MCP server + CLI in this repo are the *primitive layer* — deterministic, testable Python. Real-world campaign workflows happen one level up, in a Claude Code skill (`.claude/skills/olga/SKILL.md`) that composes this server with two adjacent MCP servers ([`flowsim-tutor`](https://github.com/Ahmed-Hassan-portfolio/flowsim-tutor) for keyword documentation, [`multiflash-mcp`](https://github.com/Ahmed-Hassan-portfolio/multiflash-mcp) for PVT and EOS sanity checks) and a small fleet of subagents (`.claude/agents/olga-*.md`).
+
+```
+Claude Code session
+      |
+      +-- skill: olga campaign  (.claude/skills/olga/SKILL.md)
+            |
+            +-- MCP: olga-automation  (this repo: parse/modify/run/parse)
+            +-- MCP: flowsim-tutor       (keyword docs lookup; separate repo)
+            +-- MCP: multiflash-mcp   (PVT/EOS; separate repo)
+            |
+            +-- subagents (parallel parsers, single analyst, runners, creators)
+                  -- see .claude/agents/olga-*.md
+```
+
+The reason for the split: primitives are deterministic logic — easy to test, easy to version, easy to call from a library. Orchestration is fuzzy reasoning — which pressures to vary, when to query Multiflash for a saturation pressure, whether the model needs a structural change versus a value-only tweak, how to interpret a stalled solver. That kind of decision-making is better expressed in prompt-source-code (a skill) than in Python decision trees, and skills compose with other skills/servers in ways source code can't.
+
+The four subagents implement a deliberate division: three sonnet-class workers (`olga-creator`, `olga-runner`, `olga-parser`) handle per-case mechanical work in parallel, conforming to a strict JSON schema; one opus-class analyst (`olga-analyst`) reasons across the set of cases serially. The schema is the synchronization primitive between them.

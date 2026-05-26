@@ -12,6 +12,19 @@ The examples are synthetic, but the integration pattern is the real point: keep 
 - **Semaphore-gated subprocess pool for batch execution**, sized to the OLGA license count (typically 6-10). Threads block on the semaphore rather than polling, so the runner respects the license without busy-waiting.
 - **Synthetic-output generator fixtures** (`tests/conftest.py`) reproduce OLGA's `.tpl`/`.ppl`/`.out` formats byte-accurately, so the test suite runs hermetically without an OLGA install or any proprietary `.opi`/`.tpl` data.
 
+## How it's driven
+
+This repo is the **stable primitive layer**: deterministic Python that parses, modifies, runs, and parses again. Real-world campaign workflows — *which* variants to create, *when* to back up old outputs, *how* to interpret a stalled solver — are encoded in a Claude Code skill (`.claude/skills/olga/SKILL.md`) plus four subagent definitions (`.claude/agents/olga-*.md`) that compose this server with other LLM tools.
+
+The skill is designed to compose with two adjacent MCP servers when they are available in the session:
+
+- **[`flowsim-tutor`](https://github.com/Ahmed-Hassan-portfolio/flowsim-tutor)** — separate sibling project; indexes OLGA's keyword reference manual so agents don't have to guess keyword semantics.
+- **[`multiflash-mcp`](https://github.com/Ahmed-Hassan-portfolio/multiflash-mcp)** — separate sibling project; wraps a thermodynamic engine for PVT properties and saturation-pressure lookups used in cross-case analysis.
+
+Neither is bundled here; the skill degrades gracefully when they are absent. The point of shipping the skill in this repo is to make the design legible: the primitive/orchestration split, the parallel-parsers-plus-single-analyst pattern, and the strict JSON schema between them are reusable beyond OLGA.
+
+For a step-by-step worked example of a campaign run — from user prompt through the two cross-MCP servers and four subagents and back to a final report — see [WORKFLOW.md](WORKFLOW.md).
+
 ## Architecture
 
 The pipeline is linear: an `.opi` XML file is parsed and optionally edited, the resulting model is handed to an OLGA subprocess, and the three output formats (`.tpl`, `.ppl`, `.out`) are parsed back into typed objects. Both the MCP server and the CLI are thin adapters over the same four backend modules.

@@ -198,7 +198,7 @@ def _parse_geometry(
         # NOT always fall on a line break: a single physical line can carry
         # the tail of the positions array and the head of the elevations
         # array. Whole-line consumption therefore over-reads and desyncs the
-        # cursor from the array boundaries (the dhsv600m irregular-grid bug).
+        # cursor from the array boundaries on irregular-grid cases.
         #
         # Robust approach: consume every numeric token of this branch's block
         # -- the run stops at the next non-numeric token, which is the next
