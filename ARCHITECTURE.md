@@ -1,56 +1,186 @@
 # Architecture
 
-## Components
+This project has two layers:
 
-**`opi_parser`** — reads, validates, modifies, and writes OLGA `.opi` XML model files. Uses lxml (with stdlib `xml.etree` as fallback) for round-trip preservation of whitespace, attribute order, and element nesting that the OLGA GUI silently rejects when broken. Exposes a low-level `xml_navigator` (load/save, find-by-tag, iterate keywords across the three scopes — Case, Library, NCCollection) and higher-level `reader`/`writer` modules that compose those primitives into business objects (`ModelSummary`, `FlowpathInfo`, etc.) and convenience operations (`set_parameter`, `create_variant`, `add_keyword`, `remove_keyword`). Does NOT run simulations or parse outputs.
+1. A deterministic Python tool layer that works with simulator files.
+2. A prompt-based orchestration layer that tells agents when and how to use those tools.
 
-**`execution_manager`** — spawns the `opi.exe` solver as a subprocess and tracks each run's state, exit code, stdout, and produced output files. Single runs go through `run_simulation`; batches go through a thread-pool with a `threading.Semaphore` whose count is the OLGA license cap. Does NOT modify `.opi` files or interpret outputs; it only orchestrates the binary.
+The design goal is simple: an LLM can help run a simulation campaign, but it only acts through narrow, inspectable tools.
 
-**`output_parser`** — parses the three OLGA output formats: `.tpl` (time-series trend data → `TrendData` with NumPy arrays keyed by `VarName@Position`), `.ppl` (spatial profile data → `ProfileData`, a 2D `time × position` grid per variable), and `.out` (text log → dict with completion status, warnings, errors). Each parser is pure-Python and operates only on bytes-on-disk; no OLGA install needed.
+## System Map
 
-**`mcp_server`** — FastMCP-based server that exposes 20 tools spanning all three backend modules: read (`read_case_summary`, `list_keywords`, `get_parameter`, `get_output_config`), modify (`set_parameter`, `set_output_variables`, `create_variant`, `validate_model`, `add_keyword`, `remove_keyword`), execute (`run_simulation`, `run_simulation_async`, `get_run_status`, `cancel_run`, `parse_trend_data`, `parse_profile_data`, `get_simulation_log`), and batch (`build_sweep`, `run_batch`, `compare_runs`). Pydantic models serialize results to JSON-compatible payloads. Does NOT contain simulation logic itself — it's a thin protocol-level adapter.
-
-**`cli`** — Typer-based CLI mirror of the MCP toolset. Each command shells out to the same backend functions and prints JSON to stdout. The CLI exists because MCP's stdio transport stalls when streaming large keyword dumps to a long-running sub-agent; a fresh subprocess per command sidesteps the pipe-buffer deadlock. Same API surface as MCP, different transport.
-
-## Data flow on a single run
-
-1. User (or LLM via MCP) calls `create_variant(base.opi, new.opi, modifications)`.
-2. `opi_parser.writer.create_variant` copies the base file, loads the XML tree once, applies each `{tag, key, values, unit}` edit via `set_key_values`, and writes `new.opi`.
-3. Caller invokes `execution_manager.runner.run_simulation(new.opi)`. The runner spawns `opi.exe new.opi` via `subprocess.Popen`; for batch runs, a `ThreadPoolExecutor` submits jobs and a `threading.Semaphore(N)` caps concurrent licenses in flight.
-4. OLGA writes its output files (`.tpl`, `.ppl`, `.out`, `.rsw`) next to `new.opi` — no `-outDir` plumbing.
-5. `output_parser.tpl_parser.parse_tpl` reads the `.tpl`, walks the OLGA-format header (version, network geometry, catalog of variables) and time-series block, and returns a `TrendData` whose `.variables` map gives a NumPy array per variable.
-6. `output_parser.ppl_parser.parse_ppl` does the analogous job for `.ppl`, returning a `ProfileData` with a 2D `(n_timesteps, n_positions)` array per variable. `output_parser.out_parser.parse_out` extracts log-level status and any error/warning lines from the `.out` text log.
-7. Results return to the caller. MCP serializes each dataclass through a Pydantic schema and emits JSON; the CLI prints the same JSON to stdout for sub-agents to consume.
-
-## Key design decisions
-
-- **lxml over xml.etree**: needed for accurate whitespace and attribute-order preservation. OLGA's GUI silently rejects round-tripped files that lose these, so the stricter parser is the default with stdlib as a fallback.
-- **Subprocess (not Python bindings)**: OLGA has no public Python API; only `opi.exe` is exposed and licensed. Subprocess gives a clean process boundary, real exit codes, and natural per-run isolation.
-- **Semaphore-based concurrency**: the OLGA license caps parallelism at N (typically 6 in our setup). A `ThreadPoolExecutor` plus `threading.Semaphore(N)` enforces it without polling and degrades cleanly when a long-running case blocks others.
-- **Dataclasses for internal models, Pydantic for MCP I/O**: dataclasses are fast and mutable and live across the four backend modules; Pydantic only appears at the protocol boundary where strict schemas and JSON serialization actually pay off.
-- **MCP via stdio plus a CLI mirror**: stdio transport is convenient for Claude integration but deadlocks on large keyword trees streamed from `list_keywords` on big models. The CLI gives sub-agents a fresh-subprocess JSON interface that bypasses the stdio pipe entirely.
-- **Synthetic output generators in conftest**: lets the test suite run hermetically — no OLGA install, no proprietary `.opi` or `.tpl` data needed to verify the parsers against the exact byte format the solver emits.
-- **Outputs colocated with the `.opi`**: matches how OLGA itself writes by default, eliminates `-outDir` plumbing, and avoids a class of "files written somewhere else" footguns.
-
-## Orchestration layer
-
-The four library modules + MCP server + CLI in this repo are the *primitive layer* - deterministic, testable Python. Real-world campaign workflows happen one level up, in a Claude Code skill (`.claude/skills/olga/SKILL.md`) that can compose this server with two adjacent MCP servers: [`flowsim-tutor`](https://github.com/Ahmed-Hassan-portfolio/flowsim-tutor) for documentation retrieval patterns, and [`multiflash-mcp`](https://github.com/Ahmed-Hassan-portfolio/multiflash-mcp) for PVT and EOS sanity checks.
-
-The documentation side is intentionally split. The public `flowsim-tutor` repo ships synthetic, non-proprietary docs to demonstrate the RAG/workflow-memory layer. In a licensed private environment, the same interface can be pointed at OLGA keyword documentation. Vendor manuals and licensed reference material are not stored in this repository.
-
-```
+```text
 Claude Code session
-      |
-      +-- skill: olga campaign  (.claude/skills/olga/SKILL.md)
-            |
-            +-- MCP: olga-automation  (this repo: parse/modify/run/parse)
-            +-- MCP: flowsim-tutor    (public synthetic docs; private OLGA docs adapter)
-            +-- MCP: multiflash-mcp   (PVT/EOS; separate repo)
-            |
-            +-- subagents (parallel parsers, single analyst, runners, creators)
-                  -- see .claude/agents/olga-*.md
+    |
+    v
+OLGA campaign skill
+    |
+    +--> optional flowsim-tutor lookup
+    +--> optional multiflash-mcp thermodynamic check
+    |
+    v
+Subagents
+    |
+    +--> olga-creator: create one .opi variant
+    +--> olga-runner: run one case
+    +--> olga-parser: parse one case
+    +--> olga-analyst: compare cases
+    |
+    v
+olga-automation tool layer
+    |
+    +--> MCP server for interactive LLM tool calls
+    +--> CLI for fresh subprocess calls from subagents
+    |
+    v
+Python backend modules
+    |
+    +--> opi_parser
+    +--> execution_manager
+    +--> output_parser
 ```
 
-The reason for the split: primitives are deterministic logic — easy to test, easy to version, easy to call from a library. Orchestration is fuzzy reasoning — which pressures to vary, when to query Multiflash for a saturation pressure, whether the model needs a structural change versus a value-only tweak, how to interpret a stalled solver. That kind of decision-making is better expressed in prompt-source-code (a skill) than in Python decision trees, and skills compose with other skills/servers in ways source code can't.
+The public repo contains the OLGA automation tool layer and the orchestration prompts. It does not contain OLGA, OLGA manuals, customer models, or licensed data.
 
-The four subagents implement a deliberate division: three sonnet-class workers (`olga-creator`, `olga-runner`, `olga-parser`) handle per-case mechanical work in parallel, conforming to a strict JSON schema; one opus-class analyst (`olga-analyst`) reasons across the set of cases serially. The schema is the synchronization primitive between them.
+## Layer 1: Python Tool Layer
+
+### `opi_parser`
+
+Owns `.opi` model-file inspection and editing.
+
+It can:
+
+- read model summaries,
+- list keywords,
+- read one parameter,
+- set one parameter,
+- create a new variant from a base model,
+- add or remove keywords,
+- validate a model through `opi.exe` when available.
+
+The key technical point is XML preservation. OLGA `.opi` files are XML-like, but the GUI is sensitive to structure, tags, key order, and formatting. The parser uses `lxml` where possible so edited files can be reopened by the simulator.
+
+### `execution_manager`
+
+Owns live simulation execution.
+
+It builds a fixed command list for `opi.exe` and runs it with `subprocess.Popen(..., shell=False)`. It passes `-outDir` explicitly, tracks status, captures stdout/stderr, handles timeouts, and can cancel a running case.
+
+OLGA may still write outputs beside the `.opi` file on some installations. The runner therefore searches both the requested output directory and the model directory, then normalizes discovered outputs for downstream parsing.
+
+Batch runs use a semaphore so the code does not start more simulations than the local license/hardware policy allows.
+
+### `output_parser`
+
+Owns result-file parsing.
+
+It reads:
+
+- `.tpl` trend files into time-series structures,
+- `.ppl` profile files into time-position grids,
+- `.out` logs into status, warnings, and errors.
+
+The parsers are pure Python and run without OLGA. That is why the public test suite can verify most of the agent-facing surface without a commercial simulator install.
+
+### `mcp_server`
+
+Owns LLM-facing tool schemas.
+
+It exposes 20 tools across model inspection, model modification, execution, output parsing, and batch comparison. The MCP server is best for small interactive calls, such as reading a case summary or checking one parameter.
+
+### `cli`
+
+Owns subprocess-friendly access to the same backend.
+
+The CLI mirrors the MCP tools and prints JSON to stdout. Subagents use the CLI because each command starts a fresh process. That avoids long-lived stdio pipes stalling when a large model or output file produces a large response.
+
+## Layer 2: Agent Orchestration
+
+The Python layer does not decide what study to run. It only exposes safe operations.
+
+The orchestration layer lives in:
+
+- `.claude/skills/olga/SKILL.md`
+- `.claude/agents/olga-creator.md`
+- `.claude/agents/olga-runner.md`
+- `.claude/agents/olga-parser.md`
+- `.claude/agents/olga-analyst.md`
+
+The skill acts as the campaign controller. It checks the user's intent, decides which variants are needed, assigns work to subagents, waits for their JSON outputs, and asks for human confirmation when the requested change is ambiguous or risky.
+
+The four agents have separate jobs:
+
+| Agent | Scope | Why separate |
+|---|---|---|
+| `olga-creator` | One model variant | Keeps model edits small and verifiable. |
+| `olga-runner` | One simulation run | Protects existing outputs and avoids accidental parallel runs. |
+| `olga-parser` | One result set | Extracts structured JSON without cross-case speculation. |
+| `olga-analyst` | Whole campaign | Performs cross-case reasoning after all data is parsed. |
+
+This separation keeps mechanical work parallelizable while keeping engineering interpretation in one place.
+
+## Optional Companion Tools
+
+### `flowsim-tutor`
+
+The public `flowsim-tutor` repo demonstrates a documentation-tutor pattern with synthetic docs. It is not an OLGA manual.
+
+In a private licensed environment, the same retrieval layer can point at approved OLGA keyword documentation. That lets the agent look up keyword semantics and allowed values without publishing vendor material.
+
+### `multiflash-mcp`
+
+`multiflash-mcp` provides deterministic thermodynamic calculations through MCP. The OLGA analyst agent can use it to check saturation pressure, density, phase boundaries, or other fluid-property context before making an engineering interpretation.
+
+## End-To-End Flow
+
+1. The user asks for a study, such as a pressure sweep.
+2. The skill checks whether the request changes one factor or many.
+3. Optional documentation lookup finds valid keyword/value choices.
+4. Optional Multiflash calls check whether the requested operating range crosses a phase boundary.
+5. Creator agents create `.opi` variants through the CLI.
+6. Runner agents run cases through the CLI, one at a time by default.
+7. Parser agents convert `.tpl`, `.ppl`, and `.out` files into JSON.
+8. The analyst agent compares cases and writes an engineering summary.
+9. The user receives a report with assumptions, warnings, and next steps.
+
+## Key Design Choices
+
+### Typed tool boundary
+
+Agents do not freely edit files or run arbitrary shell strings. They call named tools with typed inputs. This keeps behavior auditable.
+
+### CLI plus MCP
+
+MCP is useful for interactive tool calls. The CLI is safer for subagents and large outputs because each command is a fresh subprocess.
+
+### Simulator as source of physics
+
+The agent does not infer simulator behavior from text. It edits model files, runs the licensed simulator, parses the simulator outputs, and reports what it found.
+
+### Public-safe data boundary
+
+The repo uses synthetic `.opi`, `.tpl`, `.ppl`, and `.out` fixtures. It proves the automation pattern without publishing protected data.
+
+### Human review gates
+
+The workflow asks for human confirmation when a change affects multiple study factors, when documentation is unavailable, or when a result could affect an operational decision.
+
+## What Is Tested Publicly
+
+Public CI runs without OLGA.
+
+It verifies:
+
+- parser behavior on synthetic output files,
+- model validation behavior with mocked subprocess calls,
+- CLI importability and JSON-facing behavior,
+- error handling for missing files and timeouts.
+
+Live execution through `opi.exe` is not tested in public CI because it requires a licensed OLGA installation.
+
+## Known Limits
+
+- The public repo cannot demonstrate a real live run without OLGA.
+- Public `flowsim-tutor` uses synthetic docs, not OLGA manuals.
+- The orchestration layer is prompt-source-code; it is reviewable, but it requires a Claude Code session to execute end to end.
+- Human engineers must approve operational conclusions.
