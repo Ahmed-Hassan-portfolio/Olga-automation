@@ -1,8 +1,8 @@
 # olga-automation
 
-This repo is my agent-facing wrapper around OLGA-style flow-assurance workflows. It shows how I would let an LLM agent inspect a simulator model, make controlled edits, run batches, and parse outputs without handing the agent an unrestricted shell or proprietary project files.
+This repo is the simulator-automation layer of my agentic engineering portfolio. It shows how I would let an LLM agent inspect an OLGA-style model, make controlled edits, run cases, and parse simulator outputs through a typed tool boundary instead of giving the agent an unrestricted shell or proprietary project tree.
 
-The examples are synthetic, but the integration pattern is the real point: keep the simulator as the source of physics, expose a narrow typed tool layer, and make every run auditable by a human engineer.
+It is not an OLGA clone and it does not include OLGA manuals, customer models, vendor binaries, or licensed data. The examples are synthetic. The point is the integration pattern: keep the simulator as the source of physics, expose a narrow auditable tool layer, and keep a human engineer in the loop for operational decisions.
 
 ## What's technically interesting
 
@@ -14,16 +14,16 @@ The examples are synthetic, but the integration pattern is the real point: keep 
 
 ## How it's driven
 
-This repo is the **stable primitive layer**: deterministic Python that parses, modifies, runs, and parses again. Real-world campaign workflows — *which* variants to create, *when* to back up old outputs, *how* to interpret a stalled solver — are encoded in a Claude Code skill (`.claude/skills/olga/SKILL.md`) plus four subagent definitions (`.claude/agents/olga-*.md`) that compose this server with other LLM tools.
+This repo is the **stable primitive layer**: deterministic Python that parses, modifies, runs, and parses again. Real-world campaign workflows - *which* variants to create, *when* to back up old outputs, *how* to interpret a stalled solver - are encoded in a Claude Code skill (`.claude/skills/olga/SKILL.md`) plus four subagent definitions (`.claude/agents/olga-*.md`) that compose this server with other LLM tools.
 
 The skill is designed to compose with two adjacent MCP servers when they are available in the session:
 
-- **[`flowsim-tutor`](https://github.com/Ahmed-Hassan-portfolio/flowsim-tutor)** — separate sibling project; indexes OLGA's keyword reference manual so agents don't have to guess keyword semantics.
-- **[`multiflash-mcp`](https://github.com/Ahmed-Hassan-portfolio/multiflash-mcp)** — separate sibling project; wraps a thermodynamic engine for PVT properties and saturation-pressure lookups used in cross-case analysis.
+- **[`flowsim-tutor`](https://github.com/Ahmed-Hassan-portfolio/flowsim-tutor)** - public/synthetic documentation-tutor companion. It demonstrates the retrieval and workflow-memory layer using non-proprietary example docs. In a licensed private environment, the same pattern can be pointed at OLGA keyword documentation so agents can look up keyword semantics instead of guessing. OLGA manuals and vendor docs are not bundled or redistributed here.
+- **[`multiflash-mcp`](https://github.com/Ahmed-Hassan-portfolio/multiflash-mcp)** - separate sibling project; wraps a licensed thermodynamic engine for PVT properties and saturation-pressure lookups used in cross-case analysis.
 
-Neither is bundled here; the skill degrades gracefully when they are absent. The point of shipping the skill in this repo is to make the design legible: the primitive/orchestration split, the parallel-parsers-plus-single-analyst pattern, and the strict JSON schema between them are reusable beyond OLGA.
+Neither is bundled here; the skill degrades gracefully when they are absent. The point of shipping the skill in this repo is to make the design legible: the primitive/orchestration split, documentation-aware planning without publishing licensed documentation, the parallel-parsers-plus-single-analyst pattern, and the strict JSON schema between them.
 
-For a step-by-step worked example of a campaign run — from user prompt through the two cross-MCP servers and four subagents and back to a final report — see [WORKFLOW.md](WORKFLOW.md).
+For a step-by-step worked example of a campaign run - from user prompt through optional cross-MCP lookups, subagents, and back to a final report - see [WORKFLOW.md](WORKFLOW.md).
 
 ## Architecture
 
@@ -53,7 +53,7 @@ The test suite is the evaluation harness for the tool layer. **18 tests** pin th
 - **[tests/test_validator.py](tests/test_validator.py)** — 7 tests with `subprocess.run` mocked: clean validation, error parsing, warnings-only stays valid, file-not-found, opi-command-not-on-PATH, timeout, raw-output preservation.
 - **CI**: every push and PR runs `python -m pytest -q` on Python 3.11 ([.github/workflows/ci.yml](.github/workflows/ci.yml)). Pinned deps mean a fresh checkout reproduces the same 18 passes.
 
-The deliberate gap: the live-OLGA path (`run_simulation`, `run_batch`) cannot be tested hermetically because it shells out to `opi.exe`. The runner and batch logic are covered by the synthetic-output round-trip plus mocked subprocesses; end-to-end live-run verification requires a real OLGA install and is out of scope for this portfolio repo.
+The deliberate gap: the live-OLGA path (`run_simulation`, `run_batch`) cannot be tested hermetically because it shells out to `opi.exe`. This public suite covers parser/writer behavior with synthetic files and validates subprocess-facing checks with mocks. End-to-end live-run verification requires a real OLGA install and is out of scope for this portfolio repo.
 
 ## Try it
 
@@ -77,7 +77,8 @@ I designed and implemented the parser/writer boundary, MCP tool surface, CLI mir
 
 - File access is scoped to user-supplied `.opi` paths; the tools never execute arbitrary shell commands on behalf of the agent.
 - No proprietary OLGA models, customer data, or vendor binaries are shipped; examples use hand-authored synthetic fixtures.
-- Simulation logs and model metadata are surfaced to the agent as untrusted text — treat them as a prompt-injection surface and require a human engineer to sign off on operational decisions.
+- Documentation retrieval is demonstrated through `flowsim-tutor` with synthetic public docs. Private OLGA documentation can be connected only in a licensed local environment.
+- Simulation logs and model metadata are surfaced to the agent as untrusted text - treat them as a prompt-injection surface and require a human engineer to sign off on operational decisions.
 - See [SECURITY.md](SECURITY.md) for the full set of agent-safety notes and failure modes.
 
 ## See also

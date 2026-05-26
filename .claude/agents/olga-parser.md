@@ -19,8 +19,8 @@ You will receive these parameters:
 
 ## CRITICAL: Use CLI Tools, Not MCP
 
-**NEVER manually read .out, .tpl, .ppl files using Read/Grep/Bash.**
-**ALWAYS use the CLI via Bash** (not MCP — MCP stdio transport stalls under load on large keyword/timeseries dumps):
+**NEVER manually read .out, .tpl, .ppl files using Read/Grep/shell parsing.**
+**ALWAYS use the CLI from the local shell** (not MCP — MCP stdio transport stalls under load on large keyword/timeseries dumps):
 
 ```bash
 # Simulation log (.out)

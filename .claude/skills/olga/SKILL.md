@@ -206,10 +206,10 @@ If you want a one-way leak, use option 2 only.
 
 This skill is designed to compose with two adjacent MCP servers when they are available in the session:
 
-- **`flowsim-tutor`** — separate sibling project, indexes OLGA's keyword reference manual. Query with `mcp__flowsim-tutor__search_docs` when the agent needs to know what a keyword does, what its key names mean, or which sub-parameters are required. Avoids guessing OLGA semantics from naming.
+- **`flowsim-tutor`** — separate sibling project that demonstrates the documentation-tutor layer with synthetic public docs. In a licensed private environment, the same interface can be pointed at approved OLGA keyword documentation. Query it when an approved docs corpus is available and the agent needs to know what a keyword does, what its key names mean, or which sub-parameters are required. Do not assume the public repo contains OLGA manuals.
 - **`multiflash-mcp`** — separate sibling project, wraps a thermodynamic engine (Multiflash) for PVT property queries (saturation pressure, density, viscosity, flash calculations). The analyst uses this to build a CO2 saturation reference table and assess proximity to phase boundaries.
 
-Neither server is bundled with this repo. The skill is robust to their absence — it falls back to hardcoded reference data (Step 4 of the analyst) when Multiflash is not available, and proceeds without keyword documentation lookup when flowsim-tutor is not present.
+Neither server is bundled with this repo. The skill is robust to their absence — it falls back to public CO2 reference data (Step 4 of the analyst) when Multiflash is not available, and asks the user for approved keyword/value choices when no documentation server is present.
 
 ---
 
@@ -342,12 +342,12 @@ If modifications are purely numeric value changes (e.g., changing NODE pressure,
 2. Each runner agent:
    - Checks for existing outputs (.tpl, .ppl, .out)
    - If outputs exist, moves ALL to `previous/{YYYYMMDD}/` backup directory
-   - Runs ONE simulation via CLI: `python -m olga_automation.cli execute run-simulation "<case_path>"`
+   - Runs ONE simulation via CLI: `python -m olga_automation.cli execute run-simulation "<case_path>" --output-dir "<case_dir>"`
    - Verifies output files exist after completion
    - Writes status (success/failure, elapsed time) to `.campaign.json`
 
 3. Between runners: check for stalls. If no progress for 10 minutes:
-   - Check if `opi.exe` is still running (`tasklist | grep opi`)
+   - Check if `opi.exe` is still running (`Get-Process opi -ErrorAction SilentlyContinue` on PowerShell)
    - If opi.exe is not running and no new outputs appeared, the runner is stalled
    - Report to user and wait for guidance
 
@@ -550,7 +550,7 @@ If any agent stalls or fails:
 4. **Failed cases do not block successful ones in Phases 3-5.** If 4 of 5 runs succeeded, parsing and analysis proceed on those 4. The failed case can be re-run independently later.
 
 5. **Stall detection for runners:**
-   - If no progress for 10 minutes, check `tasklist | grep opi`
+   - If no progress for 10 minutes, check `Get-Process opi -ErrorAction SilentlyContinue`
    - If opi.exe is running: simulation is still active, continue waiting
    - If opi.exe is NOT running and no new outputs appeared: agent is stalled
    - Recovery: report to user, wait for guidance before spawning a replacement

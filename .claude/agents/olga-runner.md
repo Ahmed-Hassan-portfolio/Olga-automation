@@ -16,75 +16,64 @@ You will receive these parameters:
 - `study_dir`: Study directory path
 - `campaign_file`: Path to `.campaign.json` for progress tracking
 
-## CRITICAL: Use Direct OLGA Executable, Not MCP
+## CRITICAL: Use CLI Wrapper, Not Synchronous MCP
 
-For simulation execution, invoke the OLGA executable directly. Do NOT use the MCP `run_simulation` tool — it blocks the entire MCP connection for the duration of the run (10-30+ minutes) and has known issues with output-directory handling.
+For simulation execution, use the CLI wrapper by default. Do NOT use the synchronous MCP `run_simulation` tool; it blocks the entire MCP connection for the duration of the run (10-30+ minutes).
 
-```bash
-"$OPI_EXE" -i "path/to/case.opi"
+```powershell
+$caseDir = Split-Path -Parent $opi_path
+python -m olga_automation.cli execute run-simulation "$opi_path" --output-dir "$caseDir"
 ```
 
-This blocks until done (~7-10 min per case) but reliably produces outputs.
+This still blocks until the simulator finishes, but the long-running process is isolated in a fresh CLI subprocess. The CLI also keeps execution behavior inside this repository's typed boundary.
 
 For checking outputs and health, use the CLI:
-```bash
+```powershell
 python -m olga_automation.cli execute get-simulation-log "path/to/case.out"
 ```
 
-For filesystem operations, use Bash:
-```bash
-ls path/to/case.tpl path/to/case.ppl path/to/case.out 2>/dev/null
-mkdir -p "path/to/case/previous/20260315"
-mv path/to/case.tpl "path/to/case/previous/20260315/"
-```
-
-## OLGA Executable Detection
-
-Before running, locate the OLGA executable:
-```bash
-# Try OLGA_HOME first
-if [ -n "$OLGA_HOME" ]; then
-    OPI_EXE="$OLGA_HOME/bin/opi.exe"
-else
-    OPI_EXE="/path/to/your/OLGA/install/bin/opi.exe"
-fi
-
-# Verify it exists
-if [ ! -f "$OPI_EXE" ]; then
-    echo '{"error": "opi.exe not found. Set OLGA_HOME or install OLGA."}'
-    exit 1
-fi
-```
+Direct `opi.exe` invocation is an operational fallback only. Use it if the user explicitly reports that the local OLGA installation requires direct execution. If you use the fallback, keep the same pre-flight checks, backups, output verification, and `.campaign.json` update.
 
 ## Process
 
 ### Step 1: Pre-Flight Checks
 
 Verify the .opi file exists:
-```bash
-if [ ! -f "$opi_path" ]; then
-    echo "FAILURE: .opi file not found at $opi_path"
+```powershell
+if (-not (Test-Path -LiteralPath $opi_path)) {
+    Write-Error "FAILURE: .opi file not found at $opi_path"
     exit 1
-fi
+}
 ```
 
 Check that no other OLGA instance is running:
-```bash
-tasklist | grep -i opi.exe
+```powershell
+Get-Process opi -ErrorAction SilentlyContinue
 ```
-If opi.exe is already running, STOP and report to the orchestrator. Do NOT start a second instance — concurrent OLGA runs on the same machine produce severe slowdown (typically ~10x) and can corrupt each other's intermediate state.
+If `opi.exe` is already running, STOP and report to the orchestrator. Do NOT start a second instance; concurrent OLGA runs on the same workstation can cause severe slowdown and can interfere with intermediate files.
 
 ### Step 2: Data Protection
 
 Check if output files already exist next to the .opi file:
-```bash
-ls "$(dirname "$opi_path")"/*.tpl "$(dirname "$opi_path")"/*.ppl "$(dirname "$opi_path")"/*.out 2>/dev/null
+```powershell
+$caseDir = Split-Path -Parent $opi_path
+$existingOutputs = Get-ChildItem -Path (Join-Path $caseDir '*') -Include *.tpl,*.ppl,*.out,*.rsw -File
+$existingOutputs
 ```
 
 If they exist:
-1. Create backup directory: `$(dirname "$opi_path")/previous/$(date +%Y%m%d)/`
-2. Move ALL existing .tpl, .ppl, .out, .rsw files to the backup directory
-3. Verify the move succeeded (list both directories)
+1. Create backup directory: `<case_dir>/previous/<YYYYMMDD>/`.
+2. Move ALL existing .tpl, .ppl, .out, .rsw files to the backup directory.
+3. Verify the move succeeded.
+
+```powershell
+if ($existingOutputs) {
+    $backupDir = Join-Path $caseDir ("previous/{0}" -f (Get-Date -Format 'yyyyMMdd'))
+    New-Item -ItemType Directory -Force -Path $backupDir | Out-Null
+    $existingOutputs | Move-Item -Destination $backupDir
+    Get-ChildItem -LiteralPath $backupDir
+}
+```
 
 If no existing outputs, proceed directly.
 
@@ -93,13 +82,13 @@ If no existing outputs, proceed directly.
 ### Step 3: Run Simulation
 
 Record start time and execute OLGA:
-```bash
-START_TIME=$(date +%s)
-"$OPI_EXE" -i "$opi_path"
-EXIT_CODE=$?
-END_TIME=$(date +%s)
-ELAPSED=$(( END_TIME - START_TIME ))
-echo "Exit code: $EXIT_CODE, Elapsed: ${ELAPSED}s"
+```powershell
+$caseDir = Split-Path -Parent $opi_path
+$start = Get-Date
+python -m olga_automation.cli execute run-simulation "$opi_path" --output-dir "$caseDir"
+$exitCode = $LASTEXITCODE
+$elapsed = [int]((Get-Date) - $start).TotalSeconds
+Write-Output "Exit code: $exitCode, Elapsed: ${elapsed}s"
 ```
 
 This blocks for ~7-10 minutes. Do not attempt to poll or check status during execution.
@@ -109,8 +98,9 @@ If the process exits with non-zero code, note the exit code but continue to Step
 ### Step 4: Verify Outputs
 
 Check that output files were created:
-```bash
-ls -la "$(dirname "$opi_path")"/*.tpl "$(dirname "$opi_path")"/*.ppl "$(dirname "$opi_path")"/*.out 2>/dev/null
+```powershell
+$caseDir = Split-Path -Parent $opi_path
+Get-ChildItem -Path (Join-Path $caseDir '*') -Include *.tpl,*.ppl,*.out -File
 ```
 
 Required files:
@@ -123,7 +113,7 @@ If .tpl or .out is missing: report failure.
 ### Step 5: Health Check
 
 Parse the simulation log:
-```bash
+```powershell
 python -m olga_automation.cli execute get-simulation-log "path/to/case.out"
 ```
 
@@ -165,10 +155,10 @@ Report to the orchestrator with:
 ## Rules
 
 - You run ONE simulation. Do not attempt to run multiple cases.
-- NEVER run simulations in parallel. If opi.exe is already running (check with `tasklist | grep -i opi`), WAIT and report to the orchestrator.
+- NEVER run simulations in parallel by default. If `opi.exe` is already running (check with `Get-Process opi -ErrorAction SilentlyContinue`), WAIT and report to the orchestrator.
 - After completion, always verify output files exist. Do not assume success from exit code alone.
 - The `.campaign.json` update is MANDATORY. The orchestrator relies on it for progress tracking and resume.
 - If the .opi path does not exist, report failure immediately. Do not attempt to create it.
-- Use the OLGA_HOME environment variable if available, otherwise use the locally-configured install path.
+- Use the CLI wrapper by default. Use direct `opi.exe` only as a documented local fallback.
 - NEVER overwrite existing simulation outputs. Always back up to `previous/{YYYYMMDD}/` first.
 - Do NOT parse trend/profile data or analyze results. That is the parser and analyst agents' job.

@@ -20,7 +20,7 @@ You will receive:
 
 ## CRITICAL: Use CLI Tools, Not MCP
 
-**ALWAYS use the CLI via Bash** (MCP stdio transport stalls under load on large keyword trees):
+**ALWAYS use the CLI from the local shell** (PowerShell on Windows is fine). MCP stdio transport can stall under load on large keyword trees:
 
 ```bash
 # Create variant

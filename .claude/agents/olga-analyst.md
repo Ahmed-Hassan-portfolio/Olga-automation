@@ -67,7 +67,7 @@ Use the Multiflash MCP tools to establish thermodynamic reference data:
 - Use `mcp__multiflash__get_saturation_pressure` at temperatures: 0, 1, 5, 6, 7, 8, 10, 15, 17, 20, 25, 30 °C
 - Build a lookup table: T → Psat
 
-If Multiflash tools are unavailable, use these reference values from NIST/Multiflash:
+If Multiflash tools are unavailable, use these public CO2 reference values and label them as fallback data:
 - Tc = 31.04 °C, Pc = 73.83 bara
 - Psat(0°C) ≈ 34.9 bara, Psat(5°C) ≈ 39.7 bara, Psat(8°C) ≈ 42.79 bara, Psat(10°C) ≈ 44.98 bara, Psat(15°C) ≈ 50.85 bara, Psat(20°C) ≈ 57.30 bara, Psat(30°C) ≈ 72.1 bara
 
@@ -205,7 +205,7 @@ After writing the report, report to the orchestrator:
 
 - You work with parsed JSON only. Do NOT call `mcp__olga-automation__*` MCP tools or the OLGA CLI directly for raw data.
 - You DO call Multiflash MCP tools (`mcp__multiflash__*`) for thermodynamic reference data.
-- If you need to inspect an .opi model for context, use the CLI via Bash: `python -m olga_automation.cli model read-case-summary "path.opi"`
+- If you need to inspect an .opi model for context, use the CLI from the local shell: `python -m olga_automation.cli model read-case-summary "path.opi"`
 - Report what the data and methodology reveal. Do NOT start from a list of expected findings.
 - If the methodology doesn't surface a particular insight, that's a valid result — do not force conclusions.
 - When comparing cases, focus on HOW behaviors differ and WHY (using physical reasoning), not just WHETHER they differ.

@@ -34,7 +34,9 @@
 
 ## Orchestration layer
 
-The four library modules + MCP server + CLI in this repo are the *primitive layer* — deterministic, testable Python. Real-world campaign workflows happen one level up, in a Claude Code skill (`.claude/skills/olga/SKILL.md`) that composes this server with two adjacent MCP servers ([`flowsim-tutor`](https://github.com/Ahmed-Hassan-portfolio/flowsim-tutor) for keyword documentation, [`multiflash-mcp`](https://github.com/Ahmed-Hassan-portfolio/multiflash-mcp) for PVT and EOS sanity checks) and a small fleet of subagents (`.claude/agents/olga-*.md`).
+The four library modules + MCP server + CLI in this repo are the *primitive layer* - deterministic, testable Python. Real-world campaign workflows happen one level up, in a Claude Code skill (`.claude/skills/olga/SKILL.md`) that can compose this server with two adjacent MCP servers: [`flowsim-tutor`](https://github.com/Ahmed-Hassan-portfolio/flowsim-tutor) for documentation retrieval patterns, and [`multiflash-mcp`](https://github.com/Ahmed-Hassan-portfolio/multiflash-mcp) for PVT and EOS sanity checks.
+
+The documentation side is intentionally split. The public `flowsim-tutor` repo ships synthetic, non-proprietary docs to demonstrate the RAG/workflow-memory layer. In a licensed private environment, the same interface can be pointed at OLGA keyword documentation. Vendor manuals and licensed reference material are not stored in this repository.
 
 ```
 Claude Code session
@@ -42,7 +44,7 @@ Claude Code session
       +-- skill: olga campaign  (.claude/skills/olga/SKILL.md)
             |
             +-- MCP: olga-automation  (this repo: parse/modify/run/parse)
-            +-- MCP: flowsim-tutor       (keyword docs lookup; separate repo)
+            +-- MCP: flowsim-tutor    (public synthetic docs; private OLGA docs adapter)
             +-- MCP: multiflash-mcp   (PVT/EOS; separate repo)
             |
             +-- subagents (parallel parsers, single analyst, runners, creators)
