@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="utf-8"?>
+<OPGCase>
+  <DomainSubModels>
+    <!-- Visual / GUI metadata is intentionally skipped by the parser. -->
+  </DomainSubModels>
+  <APIData>
+    <Case>
+      <KeywordCollection>
+        <Keyword>
+          <Tag>OPTIONS_0</Tag>
+          <Type>OPTIONS</Type>
+          <KeyCollection>
+            <Key Name="TEMPERATURE">
+              <Values>
+                <Value>WALL</Value>
+              </Values>
+              <Unit/>
+              <DefaultUnit>NoUnit</DefaultUnit>
+            </Key>
+            <Key Name="FLOWMODEL">
+              <Values>
+                <Value>OLGAHD</Value>
+              </Values>
+              <Unit/>
+              <DefaultUnit>NoUnit</DefaultUnit>
+            </Key>
+          </KeyCollection>
+        </Keyword>
+        <Keyword>
+          <Tag>INTEGRATION_0</Tag>
+          <Type>INTEGRATION</Type>
+          <KeyCollection>
+            <Key Name="ENDTIME">
+              <Values>
+                <Value>3600</Value>
+              </Values>
+              <Unit>s</Unit>
+              <DefaultUnit>ValueUnitPair</DefaultUnit>
+            </Key>
+            <Key Name="MAXDT">
+              <Values>
+                <Value>10</Value>
+              </Values>
+              <Unit>s</Unit>
+              <DefaultUnit>ValueUnitPair</DefaultUnit>
+            </Key>
+            <Key Name="MINDT">
+              <Values>
+                <Value>0.001</Value>
+              </Values>
+              <Unit>s</Unit>
+              <DefaultUnit>ValueUnitPair</DefaultUnit>
+            </Key>
+            <Key Name="STARTTIME">
+              <Values>
+                <Value>0</Value>
+              </Values>
+              <Unit>s</Unit>
+              <DefaultUnit>ValueUnitPair</DefaultUnit>
+            </Key>
+          </KeyCollection>
+        </Keyword>
+        <Keyword>
+          <Tag>OUTPUT_0</Tag>
+          <Type>OUTPUT</Type>
+          <KeyCollection>
+            <Key Name="DELETEPREVIOUS">
+              <Values>
+                <Value>ON</Value>
+              </Values>
+              <Unit/>
+              <DefaultUnit>NoUnit</DefaultUnit>
+            </Key>
+          </KeyCollection>
+        </Keyword>
+      </KeywordCollection>
+      <NCCollection>
+        <NC>
+          <Tag>FLOWPATH_1</Tag>
+          <Type>FLOWPATH</Type>
+          <KeywordCollection>
+            <Keyword>
+              <Tag>FLOWPATH_1.PARAMETERS_0</Tag>
+              <Type>PARAMETERS</Type>
+              <KeyCollection>
+                <Key Name="LABEL">
+                  <Values>
+                    <Value>main_pipe</Value>
+                  </Values>
+                  <Unit/>
+                  <DefaultUnit>NoUnit</DefaultUnit>
+                </Key>
+              </KeyCollection>
+            </Keyword>
+            <Keyword>
+              <Tag>FLOWPATH_1.PIPE_1</Tag>
+              <Type>PIPE</Type>
+              <KeyCollection>
+                <Key Name="LABEL">
+                  <Values>
+                    <Value>pipe_section_1</Value>
+                  </Values>
+                  <Unit/>
+                  <DefaultUnit>NoUnit</DefaultUnit>
+                </Key>
+                <Key Name="LENGTH">
+                  <Values>
+                    <Value>100</Value>
+                  </Values>
+                  <Unit>m</Unit>
+                  <DefaultUnit>ValueUnitPair</DefaultUnit>
+                </Key>
+                <Key Name="DIAMETER">
+                  <Values>
+                    <Value>0.1</Value>
+                  </Values>
+                  <Unit>m</Unit>
+                  <DefaultUnit>ValueUnitPair</DefaultUnit>
+                </Key>
+                <Key Name="NSEGMENT">
+                  <Values>
+                    <Value>10</Value>
+                  </Values>
+                  <Unit/>
+                  <DefaultUnit>NoUnit</DefaultUnit>
+                </Key>
+              </KeyCollection>
+            </Keyword>
+          </KeywordCollection>
+        </NC>
+      </NCCollection>
+    </Case>
+  </APIData>
+</OPGCase>

@@ -1,0 +1,61 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Environment / secrets
+.env
+.env.local
+*.key
+*.pem
+
+# Test / coverage artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project-specific
+# OLGA outputs land alongside .opi files — keep them out of git
+*.out
+*.tpl
+*.ppl
+*.rsw
+# Exception: synthetic sample fixtures shipped with the examples must stay tracked
+!examples/sample.tpl
+logs/
+data/
+runs/
+base_models/
+*.log
+run_metadata.json
+BatchExecutionSummary.txt*
+
+# Local MCP config (use .mcp.json.example as the template)
+.mcp.json
+
+# Internal review brief — not part of public portfolio narrative
+CODEX_GITHUB_REVIEW.md
+
+# Databases
+*.db
+*.sqlite
+*.sqlite3

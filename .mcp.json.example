@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "olga-automation": {
+      "type": "stdio",
+      "command": "python",
+      "args": ["-m", "olga_automation.mcp_server.server"],
+      "env": {
+        "OLGA_HOME": "/path/to/your/OLGA/install",
+        "OPI_COMMAND": "/path/to/your/OLGA/install/bin/opi.exe"
+      }
+    }
+  }
+}
