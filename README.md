@@ -32,6 +32,18 @@ On top of that tool layer, the repo includes a Claude Code orchestration layer:
 
 That split is deliberate: Python handles deterministic mechanics; prompts handle planning, review, and multi-case reasoning.
 
+## Model-Agnostic Boundary
+
+I used Claude Code to demonstrate the workflow, so the shipped skill and agent files use Claude Code's `.claude/` format. The underlying automation is not tied to Claude as a model.
+
+Any agent runtime can reuse the same backend if it can call one of these interfaces:
+
+- MCP tools from `mcp_server`,
+- JSON-returning CLI commands from `python -m olga_automation.cli`,
+- the Python modules directly.
+
+For example, a Gemini-, OpenAI-, or local-LLM-based agent could use the same CLI/MCP tool layer. The `.claude/skills` files are the reference orchestration prompts; another agent framework would translate that workflow into its own prompt, planner, or tool-calling format.
+
 ## What This Is Not
 
 This is not OLGA, an OLGA clone, or an OLGA documentation dump.
@@ -79,6 +91,7 @@ The companion repos are optional:
 For an AI/LLM engineering reviewer, the interesting parts are:
 
 - typed tool boundaries instead of unrestricted shell access,
+- model-agnostic backend access through MCP, CLI, or Python modules,
 - MCP tools plus a CLI fallback for long or large responses,
 - multi-agent division of labor with strict JSON handoffs,
 - human-review gates around model edits and operational conclusions,

@@ -42,6 +42,8 @@ Python backend modules
 
 The public repo contains the OLGA automation tool layer and the orchestration prompts. It does not contain OLGA, OLGA manuals, customer models, or licensed data.
 
+Claude Code is the orchestration host used in this portfolio version. The backend is model-agnostic: any agent system that can call MCP tools, run the JSON CLI, or import the Python modules can use the same simulator automation layer.
+
 ## Layer 1: Python Tool Layer
 
 ### `opi_parser`
@@ -107,6 +109,8 @@ The orchestration layer lives in:
 - `.claude/agents/olga-analyst.md`
 
 The skill acts as the campaign controller. It checks the user's intent, decides which variants are needed, assigns work to subagents, waits for their JSON outputs, and asks for human confirmation when the requested change is ambiguous or risky.
+
+The `.claude/` files are therefore a reference implementation of the orchestration logic, not a hard dependency of the Python backend. A different LLM runtime would keep the same tool boundary and translate the skill/agent instructions into its own planner or tool-calling format.
 
 The four agents have separate jobs:
 
@@ -182,5 +186,5 @@ Live execution through `opi.exe` is not tested in public CI because it requires 
 
 - The public repo cannot demonstrate a real live run without OLGA.
 - Public `flowsim-tutor` uses synthetic docs, not OLGA manuals.
-- The orchestration layer is prompt-source-code; it is reviewable, but it requires a Claude Code session to execute end to end.
+- The orchestration layer is prompt-source-code. As shipped, it executes in Claude Code; other LLM runtimes need to port the prompts into their own planner/tool-calling format.
 - Human engineers must approve operational conclusions.
