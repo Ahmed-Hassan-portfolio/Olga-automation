@@ -1,6 +1,8 @@
 # olga-automation
 
-A Python library and MCP server for automating Schlumberger OLGA flow-assurance simulations — parse `.opi` model files, modify keywords programmatically, run batches under license-aware concurrency, and parse `.tpl`/`.ppl`/`.out` outputs into NumPy/JSON.
+This repo is my agent-facing wrapper around OLGA-style flow-assurance workflows. It shows how I would let an LLM agent inspect a simulator model, make controlled edits, run batches, and parse outputs without handing the agent an unrestricted shell or proprietary project files.
+
+The examples are synthetic, but the integration pattern is the real point: keep the simulator as the source of physics, expose a narrow typed tool layer, and make every run auditable by a human engineer.
 
 ## What's technically interesting
 
@@ -64,3 +66,7 @@ I designed and implemented the parser/writer boundary, MCP tool surface, CLI mir
 - No proprietary OLGA models, customer data, or vendor binaries are shipped; examples use hand-authored synthetic fixtures.
 - Simulation logs and model metadata are surfaced to the agent as untrusted text — treat them as a prompt-injection surface and require a human engineer to sign off on operational decisions.
 - See [SECURITY.md](SECURITY.md) for the full set of agent-safety notes and failure modes.
+
+## See also
+
+This project is the transient-flow/simulator side of the portfolio. For the thermodynamic-tool side, see [`multiflash-mcp`](https://github.com/Ahmed-Hassan-portfolio/multiflash-mcp). For retrieval and workflow memory around technical documentation, see [`flowsim-tutor`](https://github.com/Ahmed-Hassan-portfolio/flowsim-tutor).
